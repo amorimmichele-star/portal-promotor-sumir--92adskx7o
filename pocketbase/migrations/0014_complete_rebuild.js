@@ -75,7 +75,7 @@ migrate(
     ]
     const lojaIds = []
     for (const l of lojasData) {
-      let records = app.findRecordsByFilter('lojas', `cod_loja = '${l.cod}'`, '-created', 1, 0)
+      let records = app.findRecordsByFilter('lojas', `cod_loja = '${l.cod}'`, '', 1, 0)
       let r
       if (records.length > 0) {
         r = records[0]
@@ -96,13 +96,7 @@ migrate(
     ]
     const gerenteIds = []
     for (const g of gerentesData) {
-      let records = app.findRecordsByFilter(
-        'gerentes',
-        `nome_gerente = '${g.nome}'`,
-        '-created',
-        1,
-        0,
-      )
+      let records = app.findRecordsByFilter('gerentes', `nome_gerente = '${g.nome}'`, '', 1, 0)
       let r
       if (records.length > 0) {
         r = records[0]
@@ -123,13 +117,7 @@ migrate(
     ]
     const produtoIds = []
     for (const p of produtosData) {
-      let records = app.findRecordsByFilter(
-        'produtos',
-        `cod_produto = '${p.cod}'`,
-        '-created',
-        1,
-        0,
-      )
+      let records = app.findRecordsByFilter('produtos', `cod_produto = '${p.cod}'`, '', 1, 0)
       let r
       if (records.length > 0) {
         r = records[0]
@@ -163,7 +151,7 @@ migrate(
       },
     ]
     for (const p of promotoresData) {
-      let records = app.findRecordsByFilter('promotores', `user = '${p.user}'`, '-created', 1, 0)
+      let records = app.findRecordsByFilter('promotores', `user = '${p.user}'`, '', 1, 0)
       if (records.length === 0) {
         let r = new Record(promotoresCol)
         r.set('promotor_nome', p.nome)
