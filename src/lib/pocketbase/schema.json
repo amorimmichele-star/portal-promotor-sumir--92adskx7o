@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-23T13:17:32.808Z",
+  "generatedAt": "2026-03-23T14:24:30.856Z",
   "collections": [
     {
       "name": "users",
@@ -213,11 +213,11 @@
       "name": "visitas",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != ''",
-        "view": "@request.auth.id != ''",
-        "create": "@request.auth.id != ''",
-        "update": "@request.auth.id != ''",
-        "delete": "@request.auth.id != ''"
+        "list": "@request.auth.role = 'admin' || @request.auth.role = 'gerente' || (@request.auth.role = 'promotor' && promotor.user = @request.auth.id)",
+        "view": "@request.auth.role = 'admin' || @request.auth.role = 'gerente' || (@request.auth.role = 'promotor' && promotor.user = @request.auth.id)",
+        "create": "@request.auth.role = 'admin' || @request.auth.role = 'gerente' || @request.auth.role = 'promotor'",
+        "update": "@request.auth.role = 'admin' || @request.auth.role = 'gerente' || (@request.auth.role = 'promotor' && promotor.user = @request.auth.id)",
+        "delete": "@request.auth.role = 'admin' || @request.auth.role = 'gerente'"
       },
       "fields": [
         {
