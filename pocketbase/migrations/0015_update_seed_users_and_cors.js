@@ -1,66 +1,33 @@
 migrate(
   (app) => {
-    // Configure CORS
+    const users = app.findCollectionByNameOrId('_pb_users_auth_')
+
+    // Seed initial admin user if it doesn't exist
     try {
-      const settings = app.settings()
-      if (!settings.api) settings.api = {}
-      const origins = new Set(settings.api.corsAllowedOrigins || [])
-      origins.add('https://portal-promotor-sumire-f82ca.goskip.app')
-      origins.add('https://portal-promotor-sumire-f82ca--preview.goskip.app')
-      settings.api.corsAllowedOrigins = Array.from(origins)
-      app.save(settings)
-    } catch (err) {
-      console.error('Error updating CORS:', err.message)
+      const existing = app.findAuthRecordByEmail('_pb_users_auth_', 'amorimmichele@gmail.com')
+    } catch {
+      const record = new Record(users)
+      record.setEmail('amorimmichele@gmail.com')
+      record.setPassword('securepassword123')
+      record.setVerified(true)
+
+      // Safety check if the role field was previously added to users
+      if (users.fields.getByName('role')) {
+        record.set('role', 'admin')
+      }
+      app.save(record)
     }
 
-    const usersCol = app.findCollectionByNameOrId('users')
-
-    // Seed Admin
+    // Ensure default open API rules on users collection to prevent auth locks during development
     try {
-      let admin = app.findAuthRecordByEmail('users', 'admin@sumire.com')
-      admin.setPassword('admin123')
-      app.save(admin)
-    } catch {
-      let admin = new Record(usersCol)
-      admin.setEmail('admin@sumire.com')
-      admin.setPassword('admin123')
-      admin.setVerified(true)
-      admin.set('role', 'admin')
-      admin.set('name', 'Admin Sumirê')
-      app.save(admin)
-    }
-
-    // Seed Gerente
-    try {
-      let gerente = app.findAuthRecordByEmail('users', 'gerente@sumire.com')
-      gerente.setPassword('gerente123')
-      app.save(gerente)
-    } catch {
-      let gerente = new Record(usersCol)
-      gerente.setEmail('gerente@sumire.com')
-      gerente.setPassword('gerente123')
-      gerente.setVerified(true)
-      gerente.set('role', 'gerente')
-      gerente.set('name', 'Gerente Teste')
-      app.save(gerente)
-    }
-
-    // Seed Promotor
-    try {
-      let promotor = app.findAuthRecordByEmail('users', 'promotor@sumire.com')
-      promotor.setPassword('securepassword123')
-      app.save(promotor)
-    } catch {
-      let promotor = new Record(usersCol)
-      promotor.setEmail('promotor@sumire.com')
-      promotor.setPassword('securepassword123')
-      promotor.setVerified(true)
-      promotor.set('role', 'promotor')
-      promotor.set('name', 'Promotor Principal')
-      app.save(promotor)
+      users.listRule = ''
+      users.viewRule = ''
+      app.save(users)
+    } catch (e) {
+      console.error('Failed to update user API rules', e.message)
     }
   },
   (app) => {
-    // Revert logic empty
+    // It's safer to keep the seeded admin and rules applied during down migration
   },
 )
