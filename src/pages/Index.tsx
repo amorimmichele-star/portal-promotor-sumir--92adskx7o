@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -10,9 +11,33 @@ import {
 } from '@/components/ui/table'
 import { DashboardCards } from '@/components/DashboardCards'
 import { DashboardChart } from '@/components/DashboardChart'
-import { VISITS } from '@/lib/mock-data'
+import { getDashboardData, DashboardStats } from '@/services/dashboard'
+import { RecordModel } from 'pocketbase'
+import { useRealtime } from '@/hooks/use-realtime'
 
 export default function Index() {
+  const [stats, setStats] = useState<DashboardStats | undefined>()
+  const [recentVisits, setRecentVisits] = useState<RecordModel[]>([])
+  const [loading, setLoading] = useState(true)
+
+  const loadData = async () => {
+    const data = await getDashboardData()
+    setStats(data.stats)
+    setRecentVisits(data.recentVisits)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  useRealtime('visitas', () => loadData())
+
+  const formatTime = (dateString: string) => {
+    if (!dateString) return '--:--'
+    return new Date(dateString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 md:flex-row md:items-center justify-between">
@@ -21,7 +46,7 @@ export default function Index() {
         </p>
       </div>
 
-      <DashboardCards />
+      <DashboardCards stats={stats} />
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
         <div className="lg:col-span-4">
@@ -33,39 +58,55 @@ export default function Index() {
             <CardTitle className="text-base">Atividade Recente (Hoje)</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Promotor</TableHead>
-                  <TableHead>Loja</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Hora</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {VISITS.map((visit) => (
-                  <TableRow key={visit.id}>
-                    <TableCell className="font-medium text-xs">{visit.promoterName}</TableCell>
-                    <TableCell className="text-xs">{visit.storeName}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={visit.status === 'Em Andamento' ? 'default' : 'secondary'}
-                        className={
-                          visit.status === 'Em Andamento'
-                            ? 'bg-emerald-500 hover:bg-emerald-600'
-                            : ''
-                        }
-                      >
-                        {visit.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right text-xs text-muted-foreground">
-                      {visit.time}
-                    </TableCell>
+            {loading ? (
+              <div className="flex justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Promotor</TableHead>
+                    <TableHead>Loja</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Hora</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {recentVisits.map((visit) => {
+                    const isEmAndamento = !visit.check_out
+                    return (
+                      <TableRow key={visit.id}>
+                        <TableCell className="font-medium text-xs truncate max-w-[120px]">
+                          {visit.expand?.promotor?.promotor_nome || 'Desconhecido'}
+                        </TableCell>
+                        <TableCell className="text-xs truncate max-w-[120px]">
+                          {visit.expand?.loja?.loja_nome || 'Desconhecida'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={isEmAndamento ? 'default' : 'secondary'}
+                            className={isEmAndamento ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
+                          >
+                            {isEmAndamento ? 'Em Andamento' : 'Concluída'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {formatTime(visit.check_in)}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {recentVisits.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                        Nenhuma visita recente
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

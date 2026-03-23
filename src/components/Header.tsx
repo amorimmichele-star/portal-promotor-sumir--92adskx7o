@@ -16,7 +16,7 @@ export function Header({ title }: { title: string }) {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Buscar lojas, promotores..."
+            placeholder="Buscar..."
             className="w-full bg-muted/50 pl-8 rounded-full"
           />
         </div>

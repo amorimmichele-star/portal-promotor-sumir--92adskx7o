@@ -8,43 +8,123 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import { STORES, CATEGORIES } from '@/lib/mock-data'
-import { MapPin, Clock, CheckCircle2 } from 'lucide-react'
+import { getLojas } from '@/services/lojas'
+import { getActiveVisit, createVisit, updateVisit } from '@/services/visitas'
+import pb from '@/lib/pocketbase/client'
+import { RecordModel } from 'pocketbase'
+import { useAuth } from '@/hooks/use-auth'
+import { MapPin, CheckCircle2 } from 'lucide-react'
 
 export default function CheckIn() {
-  const [activeStoreId, setActiveStoreId] = useState<string | null>(null)
-  const [isVisitActive, setIsVisitActive] = useState(false)
-  const [checkInTime, setCheckInTime] = useState<string | null>(null)
+  const { user } = useAuth()
   const { toast } = useToast()
 
-  const handleCheckIn = () => {
-    if (!activeStoreId) {
-      toast({
-        title: 'Atenção',
-        description: 'Selecione uma loja primeiro.',
-        variant: 'destructive',
-      })
+  const [lojas, setLojas] = useState<RecordModel[]>([])
+  const [activeStoreId, setActiveStoreId] = useState<string>('')
+  const [observacoes, setObservacoes] = useState('')
+  const [activeVisit, setActiveVisit] = useState<RecordModel | null>(null)
+  const [promoterId, setPromoterId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(false)
+
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        const lojasData = await getLojas()
+        setLojas(lojasData)
+
+        // Find promoter record for current user
+        let myPromoterId = null
+        try {
+          const pRecords = await pb.collection('promotores').getFullList({
+            filter: `user = "${user?.id}"`,
+          })
+          if (pRecords.length > 0) myPromoterId = pRecords[0].id
+        } catch (e) {}
+
+        // Fallback for demo if no promoter is linked to user
+        if (!myPromoterId) {
+          const pRecords = await pb.collection('promotores').getFullList({ limit: 1 })
+          if (pRecords.length > 0) myPromoterId = pRecords[0].id
+        }
+
+        setPromoterId(myPromoterId)
+
+        if (myPromoterId) {
+          const visit = await getActiveVisit(myPromoterId)
+          if (visit) {
+            setActiveVisit(visit)
+            setActiveStoreId(visit.loja)
+            setObservacoes(visit.observacoes || '')
+          }
+        }
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Erro ao carregar dados' })
+      } finally {
+        setLoading(false)
+      }
+    }
+    initialize()
+  }, [user, toast])
+
+  const handleCheckIn = async () => {
+    if (!activeStoreId || !promoterId) {
+      toast({ title: 'Atenção', description: 'Selecione uma loja.', variant: 'destructive' })
       return
     }
-    const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    setCheckInTime(now)
-    setIsVisitActive(true)
-    toast({
-      title: 'Check-in realizado com sucesso!',
-      description: `Visita iniciada às ${now}`,
-      className: 'bg-emerald-500 text-white',
-    })
+
+    setActionLoading(true)
+    try {
+      const now = new Date().toISOString()
+      const visit = await createVisit({
+        promotor: promoterId,
+        loja: activeStoreId,
+        check_in: now,
+      })
+      setActiveVisit(visit)
+      toast({
+        title: 'Check-in realizado com sucesso!',
+        className: 'bg-emerald-500 text-white',
+      })
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro ao fazer check-in' })
+    } finally {
+      setActionLoading(false)
+    }
   }
 
-  const handleCheckOut = () => {
-    setIsVisitActive(false)
-    setActiveStoreId(null)
-    setCheckInTime(null)
-    toast({ title: 'Check-out realizado com sucesso!', description: 'Resumo da visita salvo.' })
+  const handleCheckOut = async () => {
+    if (!activeVisit) return
+
+    setActionLoading(true)
+    try {
+      const now = new Date().toISOString()
+      await updateVisit(activeVisit.id, {
+        check_out: now,
+        observacoes,
+      })
+      setActiveVisit(null)
+      setActiveStoreId('')
+      setObservacoes('')
+      toast({ title: 'Check-out realizado com sucesso!' })
+    } catch (error) {
+      toast({ variant: 'destructive', title: 'Erro ao fazer check-out' })
+    } finally {
+      setActionLoading(false)
+    }
   }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center p-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  const isVisitActive = !!activeVisit
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-in-up">
@@ -54,6 +134,14 @@ export default function CheckIn() {
           Registre sua presença e atuação nos pontos de venda.
         </p>
       </div>
+
+      {!promoterId && (
+        <Card className="border-destructive bg-destructive/10">
+          <CardContent className="p-4 text-destructive font-medium text-center">
+            Nenhum registro de promotor vinculado a esta conta.
+          </CardContent>
+        </Card>
+      )}
 
       <Card
         className={`border-2 transition-colors duration-500 ${isVisitActive ? 'border-primary shadow-md' : ''}`}
@@ -71,17 +159,17 @@ export default function CheckIn() {
         </CardHeader>
         <CardContent className="space-y-4">
           <Select
-            value={activeStoreId || ''}
+            value={activeStoreId}
             onValueChange={setActiveStoreId}
-            disabled={isVisitActive}
+            disabled={isVisitActive || !promoterId}
           >
             <SelectTrigger className="w-full h-12 text-lg">
               <SelectValue placeholder="Buscar loja..." />
             </SelectTrigger>
             <SelectContent>
-              {STORES.map((s) => (
+              {lojas.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
-                  {s.name} - {s.region}
+                  {s.loja_nome} - {s.cod_loja}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -91,9 +179,9 @@ export default function CheckIn() {
             <Button
               className="w-full h-14 text-lg font-semibold mt-4 transition-transform active:scale-[0.98]"
               onClick={handleCheckIn}
-              disabled={!activeStoreId}
+              disabled={!activeStoreId || actionLoading || !promoterId}
             >
-              Iniciar Visita (Check-in)
+              {actionLoading ? 'Processando...' : 'Iniciar Visita (Check-in)'}
             </Button>
           ) : (
             <div className="flex items-center justify-center p-4 bg-muted rounded-lg gap-3 animate-fade-in">
@@ -101,7 +189,13 @@ export default function CheckIn() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-4 w-4 bg-primary"></span>
               </span>
-              <span className="font-medium text-lg">Check-in ativo desde {checkInTime}</span>
+              <span className="font-medium text-lg">
+                Check-in ativo desde{' '}
+                {new Date(activeVisit.check_in).toLocaleTimeString('pt-BR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
             </div>
           )}
         </CardContent>
@@ -114,29 +208,18 @@ export default function CheckIn() {
               <CheckCircle2 className="text-primary" />
               Atuação na Loja
             </CardTitle>
-            <CardDescription>Marque as categorias trabalhadas nesta visita.</CardDescription>
+            <CardDescription>Resumo e observações da visita.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              {CATEGORIES.map((cat) => (
-                <div key={cat.id} className="flex items-center space-x-2">
-                  <Checkbox id={`cat-${cat.id}`} />
-                  <label
-                    htmlFor={`cat-${cat.id}`}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                  >
-                    {cat.name}
-                  </label>
-                </div>
-              ))}
-            </div>
-
             <div className="space-y-2">
               <label className="text-sm font-medium">Observações da Visita (Opcional)</label>
               <Textarea
                 placeholder="Faltou estoque de produto X, gerente solicitou display novo..."
                 className="resize-none"
-                rows={3}
+                rows={4}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                disabled={actionLoading}
               />
             </div>
 
@@ -144,8 +227,9 @@ export default function CheckIn() {
               variant="default"
               className="w-full h-14 text-lg font-semibold bg-zinc-900 hover:bg-zinc-800 transition-transform active:scale-[0.98]"
               onClick={handleCheckOut}
+              disabled={actionLoading}
             >
-              Finalizar Visita (Check-out)
+              {actionLoading ? 'Processando...' : 'Finalizar Visita (Check-out)'}
             </Button>
           </CardContent>
         </Card>

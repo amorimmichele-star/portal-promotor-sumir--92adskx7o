@@ -23,8 +23,9 @@ import {
   SidebarFooter,
 } from '@/components/ui/sidebar'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { useAuth } from '@/hooks/use-auth'
 
-const items = [
+const allItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Lojas', url: '/lojas', icon: Store },
   { title: 'Promotores', url: '/promotores', icon: Users },
@@ -36,6 +37,19 @@ const items = [
 
 export function AppSidebar() {
   const location = useLocation()
+  const { user, signOut } = useAuth()
+
+  const role = user?.role || 'promotor'
+
+  const items = allItems.filter((item) => {
+    if (role === 'admin') return true
+    if (role === 'gerente')
+      return ['Dashboard', 'Lojas', 'Promotores', 'Relatórios'].includes(item.title)
+    if (role === 'promotor') return ['Dashboard', 'Check-in (Operação)'].includes(item.title)
+    return false
+  })
+
+  const getInitials = (name?: string) => (name ? name.substring(0, 2).toUpperCase() : 'US')
 
   return (
     <Sidebar>
@@ -69,12 +83,12 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <div className="flex items-center gap-3 px-2 mb-4">
           <Avatar>
-            <AvatarImage src="https://img.usecurling.com/ppl/thumbnail?gender=female&seed=10" />
-            <AvatarFallback>AD</AvatarFallback>
+            <AvatarImage src={`https://img.usecurling.com/ppl/thumbnail?seed=${user?.id}`} />
+            <AvatarFallback>{getInitials(user?.name)}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">Admin Silva</span>
-            <span className="text-xs text-muted-foreground">Gerente Comercial</span>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-sm font-medium truncate">{user?.name || 'Usuário'}</span>
+            <span className="text-xs text-muted-foreground capitalize">{role}</span>
           </div>
         </div>
         <SidebarMenu>
@@ -85,7 +99,10 @@ export function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton className="text-red-500 hover:text-red-600">
+            <SidebarMenuButton
+              onClick={signOut}
+              className="text-red-500 hover:text-red-600 cursor-pointer"
+            >
               <LogOut />
               <span>Sair</span>
             </SidebarMenuButton>
