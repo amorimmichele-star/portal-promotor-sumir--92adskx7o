@@ -1,18 +1,9 @@
 import PocketBase from 'pocketbase'
 
-const getBackendUrl = () => {
-  const envUrl = import.meta.env.VITE_POCKETBASE_URL
-  // If the provided environment URL is an internal cluster address,
-  // we default to the current window origin. This prevents DNS/CORS errors
-  // in the browser and ensures seamless API communication in both preview
-  // and public domains without needing cross-origin policies.
-  if (envUrl && !envUrl.includes('.internal.')) {
-    return envUrl
-  }
-  return typeof window !== 'undefined' ? window.location.origin : '/'
-}
+// URL FIXA do Skip Cloud - SEMPRE usar esta
+const BACKEND_URL = 'https://portal-promotor-sumire-f82ca.skip.cloud'
 
-const pb = new PocketBase(getBackendUrl())
+const pb = new PocketBase(BACKEND_URL)
 pb.autoCancellation(false)
 
 export default pb
